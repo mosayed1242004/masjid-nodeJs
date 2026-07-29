@@ -4,10 +4,10 @@ const router = app.Router();
 const {storeStudent, updateStudent, getStudent, getAllStudents, deleteStudent} = require('../controller/students-controller');
 
 
-const { validateUser }  = require('../middleware/validator-middleware');
+const { validateUser, validatePhoneNumber }  = require('../middleware/validator-middleware');
 
 router.route('/')
-  .post(storeStudent)
+  .post(validatePhoneNumber, storeStudent)
   .put(updateStudent);
 
 router.route('/:id')

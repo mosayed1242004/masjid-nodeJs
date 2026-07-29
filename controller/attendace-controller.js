@@ -50,7 +50,7 @@ const getAttendance = asyncMiddleware(async (req, res, next) => {
   }
   const studentsIds = getStudents.map(s => s._id);
   const convertDay = new Date(req.body.day);
-  const attendance = await Attendance.find({ student_id: { $in: studentsIds }, day: convertDay }).populate('student_id');
+  const attendance = await Attendance.find({ student_id: { $in: studentsIds }, day: convertDay });
   if (attendance.length === 0 ) {
     const handler = new errorHandler("failed", "لا يوجد حضور", 400);
     return next(handler);

@@ -5,14 +5,20 @@ const { validationResult } = require('express-validator');
 const errorHandler = require('../utils/error-handler');
 
 const storeStudent = asyncMiddleware(async (req, res, next) => {
+  const errors = validationResult(req);
 
-  const storeStudent = await new student({
+  if (!errors.isEmpty()) {
+    const Handler = new errorHandler('fail', errors.array()[0].msg, 400)
+    return next(Handler);
+  }
+
+  const newStudent = await new student({
     ...req.body
   });
 
-  storeStudent.save();
+  await newStudent.save();
 
-  res.json({status: 'success', message: 'User stored successfully', code: 200, data: storeStudent});
+  res.json({status: 'success', message: 'User stored successfully', code: 200, data: newStudent});
 });
 
 const updateStudent = asyncMiddleware(async (req, res, next) => {
