@@ -52,7 +52,7 @@ const loginAdmin = asyncMiddleware(async (req, res, next) => {
     return next(Handler);
   }
 
-  const token = jwt.sign({ email: getUser.email, id: getUser._id, role: getUser.role }, process.env.SECRET_KEY,);
+  const token = jwt.sign({ email: getUser.email, id: getUser._id, role: getUser.role }, process.env.JWT_SECRET_KEY,);
 
   getUser.token = token;
   await getUser.save();
