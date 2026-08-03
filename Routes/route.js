@@ -15,8 +15,9 @@ router.route('/:id')
   .get(getUser)
   .delete(deleteUser)
 
-router.route('/admin/getUsers')
+router.route('/admin')
   .post(loginAdmin)
+router.route('/admin/getUsers')
   .get(verifyToken, getAllUsers);
 
 
