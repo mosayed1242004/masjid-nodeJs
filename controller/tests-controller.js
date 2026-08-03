@@ -21,7 +21,22 @@ const storeTests = asyncMiddleware(async (req, res, next) => {
     return next(Handler);
   }
 
-  const storeTests = await Test.insertMany(tests);
+  const operations = tests.map(test => ({
+  updateOne: {
+    filter: {
+      student_id: test.student_id,
+      name: test.name
+    },
+    update: {
+      $set: {
+        degree: test.degree
+      }
+    },
+    upsert: true
+  }
+}));
+
+const storeTests = await Test.bulkWrite(operations);
 
   return res.json({ status: "success", message: "تم حفظ التقييمات بنجاح", data: storeTests, code: 201 });
 });

@@ -2,6 +2,7 @@ const user = require('../models/user');
 const asyncMiddleware = require('../middleware/async-middleware');
 const { validationResult } = require('express-validator');
 const errorHandler = require('../utils/error-handler');
+const jwt = require("jsonwebtoken");
 
 const storeUser = asyncMiddleware(async (req, res, next) => {
   let storeUser;
@@ -44,9 +45,27 @@ const deleteUser = asyncMiddleware(async (req, res, next) => {
   res.json({ status: 'success', message: 'تم حذف المحفظ', code: 200})
 })
 
+const loginAdmin = asyncMiddleware(async (req, res, next) => {
+  const getUser = await user.findOne({ name: req.body.name, password: req.body.password });
+  if (!getUser) {
+    const Handler = new errorHandler('Fail', 'المستخدم غير موجود', 400);
+    return next(Handler);
+  }
+
+  const token = jwt.sign({ email: getUser.email, id: getUser._id, role: getUser.role }, process.env.SECRET_KEY,);
+
+  getUser.token = token;
+  await getUser.save();
+
+  return res.json({ status: 'success', message: 'User retrieved successfully', code: 200, data: getUser});
+
+
+})
+
 
 module.exports = {
   storeUser,
   getUser,
-  deleteUser
+  deleteUser,
+  loginAdmin
 };
