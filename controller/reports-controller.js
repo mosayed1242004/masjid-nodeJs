@@ -71,6 +71,73 @@ const showReports = asyncMiddleware(async (req, res, next) => {
   res.json({ status: 'success', message: 'تم استرجاع البيانات بنجاح', code: 200, data: percentages });
 });
 
+const showAdminReports = asyncMiddleware(async (req, res, next) => {
+
+  const [fromYear, fromMonth, fromDay] = req.body.from.split("-").map(Number);
+  const [toYear, toMonth, toDay] = req.body.to.split("-").map(Number);
+
+  const startDate = new Date(
+    Date.UTC(fromYear, fromMonth - 1, fromDay)
+  );
+
+  const endDate = new Date(
+    Date.UTC(toYear, toMonth - 1, toDay + 1) // +1 to make the end date inclusive
+  );
+
+  const getStudents = await student.find({});
+
+  const studentsIds = getStudents.map(s => s._id);
+
+  if (!studentsIds || studentsIds.length == 0) {
+    const Handler = new errorHandler('Fail', 'لا يوجد طلبة', 400);
+    return next(Handler);
+  }
+
+  const attendanceStats = await Attendance.aggregate([
+    {
+      $match: {
+        day: {
+          $gte: startDate,
+          $lt: endDate
+        }
+      }
+    },
+    {
+      $group: {
+        _id: "$attend",
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+
+  const counts = {
+    present: 0,
+    absent: 0,
+    late: 0,
+    excused: 0
+  };
+
+  attendanceStats.forEach(item => {
+    counts[item._id] = item.count;
+  });
+
+  const total =
+    counts.present +
+    counts.absent +
+    counts.late +
+    counts.excused;
+
+  const percentages = {
+    present: total ? (counts.present / total) * 100 : 0,
+    absent: total ? (counts.absent / total) * 100 : 0,
+    late: total ? (counts.late / total) * 100 : 0,
+    excused: total ? (counts.excused / total) * 100 : 0
+  };
+
+  res.json({ status: 'success', message: 'تم استرجاع البيانات بنجاح', code: 200, data: percentages });
+});
+
+
 const downloadExcel = asyncMiddleware(async (req, res, next) => {
   try {
     const startOfDay = new Date(req.body.day);
@@ -338,4 +405,4 @@ const downloadExcel = asyncMiddleware(async (req, res, next) => {
   }
 });
 
-module.exports = {showReports, downloadExcel};
+module.exports = {showReports, downloadExcel, showAdminReports};
