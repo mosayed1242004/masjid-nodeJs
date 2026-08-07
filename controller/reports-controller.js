@@ -405,4 +405,350 @@ const downloadExcel = asyncMiddleware(async (req, res, next) => {
   }
 });
 
-module.exports = {showReports, downloadExcel, showAdminReports};
+const downloadExcelAdmin = asyncMiddleware(async (req, res, next) => {
+  const [fromYear, fromMonth, fromDay] = req.body.from.split("-").map(Number);
+  const [toYear, toMonth, toDay] = req.body.to.split("-").map(Number);
+
+  const startDate = new Date(
+    Date.UTC(fromYear, fromMonth - 1, fromDay)
+  );
+
+  const endDate = new Date(
+    Date.UTC(toYear, toMonth - 1, toDay + 1) // +1 to make the end date inclusive
+  );
+  const getAttendanceStates = await Attendance.aggregate([
+    {
+      $match: {
+        day: {
+          $gte: startDate,
+          $lt: endDate
+        }
+      }
+    },
+    {
+      $group: {
+        _id: "$attend",
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+
+const result = await Attendance.aggregate([
+  // 1. فلترة بالتاريخ
+  {
+    $match: {
+      day: { $gte: startDate, $lt: endDate }
+    }
+  },
+
+  // 2. جلب بيانات الطالب
+  {
+    $lookup: {
+      from: "students",
+      localField: "student_id",
+      foreignField: "_id",
+      as: "student"
+    }
+  },
+  { $unwind: "$student" },
+
+  // 3. تجميع لكل طالب
+  {
+    $group: {
+      _id: {
+        userId: "$student.userId",
+        studentId: "$student._id",
+        studentName: "$student.name",
+        phone: "$student.phone_number",
+      },
+      totalDays: { $sum: 1 },                                                        // كل الأيام
+      presentCount: {
+        $sum: { $cond: [{ $eq: ["$attend", "present"] }, 1, 0] }                    // أيام الحضور
+      },
+      absentCount: {
+        $sum: { $cond: [{ $eq: ["$attend", "absent"] }, 1, 0] }                     // أيام الغياب
+      }
+    }
+  },
+
+  // 4. حساب النسبة والدرجة
+  {
+    $addFields: {
+      attendancePercentage: {
+        $round: [
+          { $multiply: [{ $divide: ["$presentCount", "$totalDays"] }, 100] },
+          2                                                                           // رقمين بعد العلامة
+        ]
+      },
+      grade: {
+        $round: [
+          { $multiply: [{ $divide: ["$presentCount", "$totalDays"] }, 10] },
+          2
+        ]
+      }
+    }
+  },
+
+  // 5. تجميع الطلاب تحت الـ userId
+  {
+    $group: {
+      _id: "$_id.userId",
+      students: {
+        $push: {
+          studentId: "$_id.studentId",
+          name: "$_id.studentName",
+          phone: "$_id.phone",
+          totalDays: "$totalDays",
+          presentCount: "$presentCount",
+          absentCount: "$absentCount",
+          attendancePercentage: "$attendancePercentage",                             // مثال: 85.71
+          grade: "$grade"                                                             // مثال: 8.57
+        }
+      }
+    }
+  },
+
+  // 6. حول _id من String لـ ObjectId
+  {
+    $addFields: {
+      userObjectId: { $toObjectId: "$_id" }
+    }
+  },
+
+  // 7. جلب بيانات الـ User
+  {
+    $lookup: {
+      from: "users",
+      localField: "userObjectId",
+      foreignField: "_id",
+      as: "user"
+    }
+  },
+  { $unwind: "$user" },
+
+  // 8. الـ output النهائي
+  {
+    $project: {
+      _id: 0,
+      user: {
+        _id: "$user._id",
+        name: "$user.name"
+      },
+      students: 1
+    }
+  }
+]);
+
+  let total = 0;
+
+  let counts = {
+    present: 0,
+    absent: 0,
+    late: 0,
+    excused: 0
+  };
+
+  getAttendanceStates.forEach(e => {
+    total += e.count;
+    counts[e._id] = e.count;
+  })
+
+
+  const persentage = {
+    present: Math.round(counts.present / total * 100),
+    absent: Math.round(counts.absent / total * 100),
+    late: Math.round(counts.late / total * 100),
+    excused: Math.round(counts.excused / total * 100)
+  }
+
+const NAVY       = "0B1D3A";
+const NAVY_SOFT  = "13294B";
+const GOLD       = "C9A227";
+const GOLD_LIGHT = "F5EBC8";
+const WHITE      = "FFFFFF";
+const ROW_EVEN   = "F4F6F9";
+const ROW_ODD    = "FFFFFF";
+const BORDER_COLOR = "D9DEE7";
+
+const GRADE_COLORS = {
+  high: { fg: "1E7F4F", bg: "E5F5EC" },  // >= 8 أخضر
+  mid:  { fg: "9A6B00", bg: "FFF3D6" },  // >= 5 أمبر
+  low:  { fg: "B3261E", bg: "FBE7E6" },  // < 5  أحمر
+};
+
+// ====== Helpers ======
+const fill = (argb) => ({
+  type: "pattern", pattern: "solid",
+  fgColor: { argb },
+});
+
+const borders = (bottomColor = BORDER_COLOR, bottomStyle = "thin") => ({
+  top:    { style: "thin",        color: { argb: BORDER_COLOR } },
+  left:   { style: "thin",        color: { argb: BORDER_COLOR } },
+  right:  { style: "thin",        color: { argb: BORDER_COLOR } },
+  bottom: { style: bottomStyle,   color: { argb: bottomColor  } },
+  });
+
+  const STATUS_COLORS = {
+  "حاضر":  { fg: "1E7F4F", bg: "E5F5EC" },  // أخضر
+  "غائب":  { fg: "B3261E", bg: "FBE7E6" },  // أحمر
+  "متأخر": { fg: "9A6B00", bg: "FFF3D6" },  // أمبر
+  "بعذر":  { fg: "3B5BA5", bg: "E7ECFA" },  // أزرق
+};
+
+const gradeTheme = (grade) =>
+  grade >= 8 ? GRADE_COLORS.high :
+  grade >= 5 ? GRADE_COLORS.mid  : GRADE_COLORS.low;
+
+// ====== Workbook ======
+const workbook = new ExcelJS.Workbook();
+workbook.creator = "نظام إدارة حلقات القرآن الكريم";
+workbook.created = new Date();
+
+const worksheet = workbook.addWorksheet(
+  `تقرير من ${startDate.getDate()} إلي ${endDate.getDate()}`,
+  {
+    properties: { defaultRowHeight: 22 },
+    pageSetup:  { fitToPage: true, fitToWidth: 1, orientation: "portrait" },
+    views:      [{ rightToLeft: true }],
+  }
+);
+
+// ====== عرض الأعمدة ======
+[18, 30, 18, 14, 14, 14].forEach((w, i) =>
+  worksheet.getColumn(i + 1).width = w
+);
+
+// ====== Row 1 — عنوان التقرير ======
+worksheet.mergeCells("A1:F1");
+const titleCell = worksheet.getCell("A1");
+titleCell.value     = "📋  تقرير نسبة الحضور";
+titleCell.font      = { bold: true, size: 18, color: { argb: WHITE }, name: "Calibri" };
+titleCell.fill      = fill(NAVY);
+titleCell.alignment = { horizontal: "center", vertical: "middle" };
+titleCell.border    = borders(GOLD, "medium");
+worksheet.getRow(1).height = 38;
+
+// ====== Row 2 — عناوين الإحصائيات ======
+const statsHeaders = ["حاضر", "غائب", "متأخر", "بعذر"];
+const statsRow = worksheet.getRow(2);
+statsRow.height = 26;
+statsHeaders.forEach((label, i) => {
+  const cell    = statsRow.getCell(i + 1);
+  cell.value    = label;
+  cell.font     = { bold: true, size: 12, color: { argb: WHITE }, name: "Calibri" };
+  cell.fill     = fill(NAVY_SOFT);
+  cell.alignment = { horizontal: "center", vertical: "middle" };
+  cell.border   = borders(GOLD, "medium");
+});
+
+// ====== Row 3 — قيم الإحصائيات ======
+const statsValues = [
+  { value: `${persentage.present}%`,  key: "حاضر"  },
+  { value: `${persentage.absent}%`,   key: "غائب"  },
+  { value: `${persentage.late}%`,     key: "متأخر" },
+  { value: `${persentage.excused}%`,  key: "بعذر"  },
+];
+const valuesRow = worksheet.getRow(3);
+valuesRow.height = 24;
+statsValues.forEach(({ value, key }, i) => {
+  const theme   = STATUS_COLORS[key];
+  const cell    = valuesRow.getCell(i + 1);
+  cell.value    = value;
+  cell.font     = { bold: true, size: 13, color: { argb: theme.fg }, name: "Calibri" };
+  cell.fill     = fill(theme.bg);
+  cell.alignment = { horizontal: "center", vertical: "middle" };
+  cell.border   = borders(BORDER_COLOR);
+});
+
+// ====== Rows 4+ — المعلمون والطلاب ======
+let rowIndex = 4;
+
+result.forEach((user) => {
+
+  // ── صف اسم المعلم ──────────────────────────────────────────
+  worksheet.mergeCells(`A${rowIndex}:F${rowIndex}`);
+  const userRow      = worksheet.getRow(rowIndex);
+  userRow.height     = 30;
+  const userCell     = userRow.getCell(1);
+  userCell.value     = `👤  ${user.user.name}`;
+  userCell.font      = { bold: true, size: 13, color: { argb: WHITE }, name: "Calibri" };
+  userCell.fill      = fill(NAVY);
+  userCell.alignment = { horizontal: "center", vertical: "middle", readingOrder: "rtl" };
+  userCell.border    = borders(GOLD, "medium");
+  rowIndex++;
+
+  // ── صف عناوين الجدول ───────────────────────────────────────
+  const HEADERS = ["#", "الاسم", "رقم الهاتف", "مرات الغياب", "مرات الحضور", "الدرجة / 10"];
+  const headerRow  = worksheet.getRow(rowIndex);
+  headerRow.height = 24;
+  HEADERS.forEach((h, i) => {
+    const cell     = headerRow.getCell(i + 1);
+    cell.value     = h;
+    cell.font      = { bold: true, size: 11, color: { argb: GOLD_LIGHT }, name: "Calibri" };
+    cell.fill      = fill(NAVY_SOFT);
+    cell.alignment = { horizontal: "center", vertical: "middle", readingOrder: "rtl" };
+    cell.border    = borders(GOLD, "medium");
+  });
+  rowIndex++;
+
+  // ── صفوف الطلاب ────────────────────────────────────────────
+  user.students.forEach((student, idx) => {
+    const isEven  = idx % 2 === 0;
+    const row     = worksheet.getRow(rowIndex);
+    const theme   = gradeTheme(student.grade);
+    row.height    = 22;
+
+    const cells = [
+      { value: idx + 1,              align: "center", isGrade: false },
+      { value: student.name,         align: "right",  isGrade: false },
+      { value: student.phone,        align: "center", isGrade: false },
+      { value: student.absentCount,  align: "center", isGrade: false },
+      { value: student.presentCount, align: "center", isGrade: false },
+      { value: student.grade,        align: "center", isGrade: true  },
+    ];
+
+    cells.forEach(({ value, align, isGrade }, i) => {
+      const cell     = row.getCell(i + 1);
+      cell.value     = isGrade ? parseFloat(student.grade.toFixed(2)) : value;
+      cell.font      = {
+        name:  "Calibri",
+        size:  11,
+        bold:  isGrade,
+        color: { argb: isGrade ? theme.fg : NAVY },
+      };
+      cell.fill      = fill(isGrade ? theme.bg : isEven ? ROW_EVEN : ROW_ODD);
+      cell.alignment = { horizontal: align, vertical: "middle", readingOrder: "rtl" };
+      cell.border    = borders();
+      if (isGrade) cell.numFmt = "0.00";
+    });
+
+    row.commit();
+    rowIndex++;
+  });
+
+  // ── صف فاصل ────────────────────────────────────────────────
+  worksheet.mergeCells(`A${rowIndex}:F${rowIndex}`);
+  const sepCell  = worksheet.getCell(`A${rowIndex}`);
+  sepCell.fill   = fill(GOLD);
+  worksheet.getRow(rowIndex).height = 4;
+  rowIndex++;
+});
+
+      res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=attendance-${req.body.from}-to-${req.body.to}.xlsx`
+    );
+
+    const buffer = await workbook.xlsx.writeBuffer();
+
+    return res.status(200).send(buffer);
+
+})
+
+module.exports = {showReports, downloadExcel, showAdminReports, downloadExcelAdmin};
