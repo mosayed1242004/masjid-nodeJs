@@ -16,6 +16,6 @@ router.route('/download')
   .post(downloadExcel);
 
 router.route('/download/admin')
-  .get(verifyToken, downloadExcelAdmin);
+  .post(verifyToken, downloadExcelAdmin);
 
 module.exports = router;
