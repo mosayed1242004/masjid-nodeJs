@@ -416,6 +416,8 @@ const downloadExcelAdmin = asyncMiddleware(async (req, res, next) => {
   const endDate = new Date(
     Date.UTC(toYear, toMonth - 1, toDay + 1) // +1 to make the end date inclusive
   );
+
+  const totalDays = (Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)  * (3 / 7) * (2 / 3)));
   const getAttendanceStates = await Attendance.aggregate([
     {
       $match: {
@@ -476,13 +478,13 @@ const result = await Attendance.aggregate([
     $addFields: {
       attendancePercentage: {
         $round: [
-          { $multiply: [{ $divide: ["$presentCount", "$totalDays"] }, 100] },
+          { $multiply: [{ $divide: ["$presentCount", totalDays] }, 100] },
           2                                                                           // رقمين بعد العلامة
         ]
       },
       grade: {
         $round: [
-          { $multiply: [{ $divide: ["$presentCount", "$totalDays"] }, 10] },
+          { $multiply: [{ $divide: ["$presentCount", totalDays] }, 10] },
           2
         ]
       }
@@ -498,7 +500,6 @@ const result = await Attendance.aggregate([
           studentId: "$_id.studentId",
           name: "$_id.studentName",
           phone: "$_id.phone",
-          totalDays: "$totalDays",
           presentCount: "$presentCount",
           absentCount: "$absentCount",
           attendancePercentage: "$attendancePercentage",                             // مثال: 85.71
@@ -538,6 +539,23 @@ const result = await Attendance.aggregate([
     }
   }
 ]);
+
+for (const std of result) {
+  for (const student of std.students) {
+    await test.findOneAndUpdate(
+      { student_id: student.studentId },
+      {
+        student_id: student.studentId,
+        name: "الحضور",
+        degree: student.grade
+      },
+      {
+        upsert: true,
+        returnDocument: 'after' 
+      }
+    );
+  }
+}
 
   let total = 0;
 
