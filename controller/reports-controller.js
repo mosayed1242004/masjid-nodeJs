@@ -723,7 +723,7 @@ result.forEach((user) => {
       { value: student.phone,        align: "center", isGrade: false },
       { value: student.absentCount,  align: "center", isGrade: false },
       { value: student.presentCount, align: "center", isGrade: false },
-      { value: student.grade,        align: "center", isGrade: true  },
+      { value: Math.round(student.grade),        align: "center", isGrade: true  },
     ];
 
     cells.forEach(({ value, align, isGrade }, i) => {
