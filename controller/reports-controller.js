@@ -141,10 +141,10 @@ const showAdminReports = asyncMiddleware(async (req, res, next) => {
 
 const downloadExcel = asyncMiddleware(async (req, res, next) => {
   try {
-    const startOfDay = new Date(req.body.day);
+    const startOfDay = new Date(req.body.from);
     startOfDay.setUTCHours(0, 0, 0, 0);
 
-    const endOfDay = new Date(startOfDay);
+    const endOfDay = new Date(req.body.to);
     endOfDay.setUTCDate(endOfDay.getUTCDate() + 1);
 
     // جلب بيانات المحفظ
@@ -164,38 +164,68 @@ const downloadExcel = asyncMiddleware(async (req, res, next) => {
     const studentsIds = getStudents.map((s) => s._id);
 
     // جلب الحضور
-    const attendance = await Attendance.find({
-      student_id: { $in: studentsIds },
-      day: {
-        $gte: startOfDay,
-        $lt: endOfDay,
+    const attendance = await Attendance.aggregate([
+  // 1. فلترة بالتاريخ
+  {
+    $match: {
+      day: { $gte: startOfDay, $lt: endOfDay }
+    }
+  },
+
+  // 2. جلب بيانات الطالب
+  {
+    $lookup: {
+      from: "students",
+      localField: "student_id",
+      foreignField: "_id",
+      as: "student"
+    },
+  },
+  { $unwind: "$student" },
+  {
+    $match: {
+      "student.userId": req.body.userId
+    }
+  },
+
+{
+    $group: {
+      _id: "$student._id",
+
+      studentName: {
+        $first: "$student.name"
       },
-    }).populate("student_id");
 
-    // =========================
-    // التاريخ واليوم
-    // =========================
+      phone: {
+        $first: "$student.phone_number"
+      },
 
-    const date = new Date(req.body.day);
+      totalDays: {
+        $sum: 1
+      },
 
-    const days = [
-      "الأحد",
-      "الإثنين",
-      "الثلاثاء",
-      "الأربعاء",
-      "الخميس",
-      "الجمعة",
-      "السبت",
-    ];
+      presentCount: {
+        $sum: {
+          $cond: [
+            { $eq: ["$attend", "present"] },
+            1,
+            0
+          ]
+        }
+      },
 
-    const dayName = days[date.getUTCDay()];
-
-    const formattedDate = date.toLocaleDateString("ar-EG", {
-      timeZone: "UTC",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
+      absentCount: {
+        $sum: {
+          $cond: [
+            { $eq: ["$attend", "absent"] },
+            1,
+            0
+          ]
+        }
+      }
+    }
+  }
+]);
 
     // =========================
     // نظام الألوان (Navy / Gold identity)
@@ -225,7 +255,7 @@ const downloadExcel = asyncMiddleware(async (req, res, next) => {
     workbook.creator = "نظام إدارة حلقات القرآن الكريم";
     workbook.created = new Date();
 
-    const worksheet = workbook.addWorksheet(`تقرير - ${req.body.day}`, {
+    const worksheet = workbook.addWorksheet(`تقرير - ${req.body.from} الي ${req.body.to}`, {
       properties: { defaultRowHeight: 22 },
       pageSetup: { fitToPage: true, fitToWidth: 1, orientation: "portrait" },
     });
@@ -245,14 +275,15 @@ const downloadExcel = asyncMiddleware(async (req, res, next) => {
     worksheet.getColumn(1).width = 32;
     worksheet.getColumn(2).width = 22;
     worksheet.getColumn(3).width = 18;
+    worksheet.getColumn(4).width = 18;
 
     // =========================
     // شعار/عنوان علوي (Row 1)
     // =========================
 
-    worksheet.mergeCells("A1:C1");
+    worksheet.mergeCells("A1:D1");
     const titleCell = worksheet.getCell("A1");
-    titleCell.value = "تقرير حضور - " + dayName + " - " + req.body.day;
+    titleCell.value = "تقرير حضور - " + req.body.from + " - " + req.body.to;
     titleCell.font = { bold: true, size: 16, color: { argb: WHITE }, name: "Calibri" };
     titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
     titleCell.alignment = { horizontal: "center", vertical: "middle" };
@@ -262,9 +293,9 @@ const downloadExcel = asyncMiddleware(async (req, res, next) => {
     // صف معلومات المحفظ والتاريخ (Row 2)
     // =========================
 
-    worksheet.mergeCells("A2:C2");
+    worksheet.mergeCells("A2:D2");
     const infoCell = worksheet.getCell("A2");
-    infoCell.value = `المحفظ: ${getUser.name}      |      التاريخ: ${formattedDate}      |      اليوم: ${dayName}`;
+    infoCell.value = `المحفظ: ${getUser.name}      |      التاريخ: ${req.body.from}      |      اليوم: ${req.body.to}`;
     infoCell.font = { bold: true, size: 11, color: { argb: NAVY }, name: "Calibri" };
     infoCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: GOLD_LIGHT } };
     infoCell.alignment = { horizontal: "center", vertical: "middle" };
@@ -284,7 +315,7 @@ const downloadExcel = asyncMiddleware(async (req, res, next) => {
     // =========================
 
     const headerRow = worksheet.getRow(4);
-    headerRow.values = ["الاسم", "رقم الهاتف", "الحضور"];
+    headerRow.values = ["الاسم", "رقم الهاتف", "ايام الحضور", "ايام الغياب"];
     headerRow.font = { bold: true, size: 12, color: { argb: WHITE }, name: "Calibri" };
     headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY_SOFT } };
     headerRow.alignment = { horizontal: "center", vertical: "middle" };
@@ -305,21 +336,13 @@ const downloadExcel = asyncMiddleware(async (req, res, next) => {
     let rowIndex = 5;
 
     attendance.forEach((attend) => {
-      let attendStatus = "حاضر";
-
-      if (attend.attend === "absent") {
-        attendStatus = "غائب";
-      } else if (attend.attend === "late") {
-        attendStatus = "متأخر";
-      } else if (attend.attend === "excused") {
-        attendStatus = "بعذر";
-      }
 
       const row = worksheet.getRow(rowIndex);
       row.values = [
-        attend.student_id.name,
-        attend.student_id.phone_number,
-        attendStatus,
+        attend.studentName,
+        attend.phone,
+        attend.presentCount,
+        attend.absentCount
       ];
       row.height = 22;
 
@@ -336,14 +359,23 @@ const downloadExcel = asyncMiddleware(async (req, res, next) => {
         };
 
         if (colNumber === 3) {
-          const statusStyle = STATUS_COLORS[attendStatus];
+          const statusStyle = STATUS_COLORS["حاضر"];
           cell.fill = {
             type: "pattern",
             pattern: "solid",
             fgColor: { argb: statusStyle.bg },
           };
           cell.font = { bold: true, color: { argb: statusStyle.fg } };
-        } else {
+        } else if (colNumber === 4) {
+          const statusStyle = STATUS_COLORS["غائب"];
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: statusStyle.bg },
+          };
+          cell.font = { bold: true, color: { argb: statusStyle.fg } };
+        }
+        else {
           cell.fill = {
             type: "pattern",
             pattern: "solid",
@@ -356,28 +388,6 @@ const downloadExcel = asyncMiddleware(async (req, res, next) => {
       rowIndex++;
     });
 
-    // =========================
-    // صف إحصائي في النهاية
-    // =========================
-
-    const total = attendance.length;
-    const present = attendance.filter((a) => a.attend === "present" || !a.attend).length;
-    const absent = attendance.filter((a) => a.attend === "absent").length;
-    const late = attendance.filter((a) => a.attend === "late").length;
-    const excused = attendance.filter((a) => a.attend === "excused").length;
-
-    rowIndex += 1; // فاصل
-    worksheet.mergeCells(`A${rowIndex}:C${rowIndex}`);
-    const summaryCell = worksheet.getCell(`A${rowIndex}`);
-    summaryCell.value = `الإجمالي: ${total}   |   حاضر: ${present}   |   غائب: ${absent}   |   متأخر: ${late}   |   بعذر: ${excused}`;
-    summaryCell.font = { bold: true, size: 11, color: { argb: NAVY } };
-    summaryCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: GOLD_LIGHT } };
-    summaryCell.alignment = { horizontal: "center", vertical: "middle" };
-    worksheet.getRow(rowIndex).height = 26;
-
-    // تجميد الصفوف العلوية عند التمرير
-    worksheet.views[0].state = "frozen";
-    worksheet.views[0].ySplit = 4;
 
     // =========================
     // Response headers
@@ -390,7 +400,7 @@ const downloadExcel = asyncMiddleware(async (req, res, next) => {
 
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=attendance-${req.body.day}.xlsx`
+      `attachment; filename=attendance-${req.body.from}-${req.body.to}.xlsx`
     );
 
     const buffer = await workbook.xlsx.writeBuffer();
@@ -405,7 +415,6 @@ const downloadExcel = asyncMiddleware(async (req, res, next) => {
     });
   }
 });
-
 const downloadExcelAdmin = asyncMiddleware(async (req, res, next) => {
   const [fromYear, fromMonth, fromDay] = req.body.from.split("-").map(Number);
   const [toYear, toMonth, toDay] = req.body.to.split("-").map(Number);
