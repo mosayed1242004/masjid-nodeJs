@@ -539,7 +539,24 @@ const result = await Attendance.aggregate([
     }
   }
 ]);
-
+  
+for (const std of result) {
+  for (const student of std.students) {
+    await test.findOneAndUpdate(
+      { student_id: student.studentId },
+      {
+        student_id: student.studentId,
+        name: "الحضور",
+        degree: student.grade
+      },
+      {
+        upsert: true,
+        returnDocument: 'after' 
+      }
+    );
+  }
+}
+  
   let total = 0;
 
   let counts = {
