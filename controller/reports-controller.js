@@ -10,14 +10,15 @@ const test = require('../models/test');
 
 const showReports = asyncMiddleware(async (req, res, next) => {
 
-  const [year, month, day] = req.body.day.split("-").map(Number);
+  const [fromYear, fromMonth, fromDay] = req.body.from.split("-").map(Number);
+  const [toYear, toMonth, toDay] = req.body.to.split("-").map(Number);
 
   const startOfDay = new Date(
-    Date.UTC(year, month - 1, day)
+    Date.UTC(fromYear, fromMonth - 1, fromDay)
   );
 
   const endOfDay = new Date(
-    Date.UTC(year, month - 1, day + 1)
+    Date.UTC(toYear, toMonth - 1, toDay + 1)
   );
 
   const getStudents = await student.find({ userId: req.body.userId });
@@ -415,6 +416,7 @@ const downloadExcel = asyncMiddleware(async (req, res, next) => {
     });
   }
 });
+
 const downloadExcelAdmin = asyncMiddleware(async (req, res, next) => {
   const [fromYear, fromMonth, fromDay] = req.body.from.split("-").map(Number);
   const [toYear, toMonth, toDay] = req.body.to.split("-").map(Number);
@@ -548,8 +550,8 @@ const result = await Attendance.aggregate([
     }
   }
 ]);
-  
-for (const std of result) {
+
+  for (const std of result) {
   for (const student of std.students) {
     await test.findOneAndUpdate(
       { student_id: student.studentId },
@@ -565,7 +567,7 @@ for (const std of result) {
     );
   }
 }
-  
+
   let total = 0;
 
   let counts = {
@@ -732,7 +734,7 @@ result.forEach((user) => {
       { value: student.phone,        align: "center", isGrade: false },
       { value: student.absentCount,  align: "center", isGrade: false },
       { value: student.presentCount, align: "center", isGrade: false },
-      { value: student.grade,        align: "center", isGrade: true  },
+      { value: Math.round(student.grade),        align: "center", isGrade: true  },
     ];
 
     cells.forEach(({ value, align, isGrade }, i) => {
