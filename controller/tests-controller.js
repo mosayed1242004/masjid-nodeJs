@@ -92,7 +92,45 @@ const getTests = asyncMiddleware(async (req, res, next) => {
   return res.json({ status: 'success', message: "تم استرداد التقييمات بنجاح", data: getTests, code: 200 });
 })
 
+const getAllTests = asyncMiddleware(async (req, res, next) => {
+  const getTests = await test.aggregate([
+  {
+    $group: {
+      _id: "$student_id",
+      totalDegree: { $sum: "$degree" },
+    },
+  },
+  {
+    $lookup: {
+      from: "students", // collection name in MongoDB
+      localField: "_id",
+      foreignField: "_id",
+      as: "student",
+    },
+  },
+  {
+    $unwind: "$student",
+  },
+  {
+    $project: {
+      _id: 0,
+      student_id: "$student.student_id",
+      name: "$student.name",
+      totalDegree: 1,
+    },
+  },
+  {
+    $sort: { totalDegree: -1 },
+  },
+  {
+    $limit: 15,
+  },
+]);
+  return res.json(getTests);
+})
+
 module.exports = {
   storeTests,
-  getTests
+  getTests,
+  getAllTests
 };
