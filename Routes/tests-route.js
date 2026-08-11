@@ -8,6 +8,7 @@ const { validateUser }  = require('../middleware/validator-middleware');
 
 router.route('/')
   .post(storeTests)
+  .get(getAllTests)
 
 router.route('/:userId')
   .get(getTests)
