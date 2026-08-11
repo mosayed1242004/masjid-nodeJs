@@ -93,7 +93,7 @@ const getTests = asyncMiddleware(async (req, res, next) => {
 })
 
 const getAllTests = asyncMiddleware(async (req, res, next) => {
-  const getTests = await test.aggregate([
+  const getTests = await Test.aggregate([
   {
     $group: {
       _id: "$student_id",
