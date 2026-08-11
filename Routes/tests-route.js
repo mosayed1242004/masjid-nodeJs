@@ -8,8 +8,8 @@ const verifyToken = require('../middleware/verify-token-middleware');
 const { validateUser }  = require('../middleware/validator-middleware');
 
 router.route('/')
-  .post(verifyToken, storeTests)
-  .get(getAllTests)
+  .post(storeTests)
+  .get(verifyToken, getAllTests)
 
 router.route('/:userId')
   .get(getTests)
