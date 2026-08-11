@@ -1,7 +1,7 @@
 const app = require('express');
 const router = app.Router();
 
-const { storeTests, getTests } = require('../controller/tests-controller');
+const { storeTests, getTests, getAllTests } = require('../controller/tests-controller');
 const verifyToken = require('../middleware/verify-token-middleware');
 
 
