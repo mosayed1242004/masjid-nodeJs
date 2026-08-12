@@ -554,7 +554,7 @@ const result = await Attendance.aggregate([
   for (const std of result) {
   for (const student of std.students) {
     await test.findOneAndUpdate(
-      { student_id: student.studentId },
+      { student_id: student.studentId, name: "الحضور" },
       {
         $set: {
           student_id: student.studentId,
