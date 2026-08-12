@@ -16,7 +16,7 @@ router.route('/download')
   .post(downloadExcel);
 
 router.route('/download/admin')
-  .get(downloadAdminTestsDegree)
+  .get(verifyToken, downloadAdminTestsDegree)
   .post(verifyToken, downloadExcelAdmin);
 
 module.exports = router;
