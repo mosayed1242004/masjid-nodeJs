@@ -556,9 +556,11 @@ const result = await Attendance.aggregate([
     await test.findOneAndUpdate(
       { student_id: student.studentId },
       {
-        student_id: student.studentId,
-        name: "الحضور",
-        degree: student.grade
+        $set: {
+          student_id: student.studentId,
+          name: "الحضور",
+          degree: student.grade
+        }
       },
       {
         upsert: true,
