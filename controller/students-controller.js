@@ -1,5 +1,6 @@
 const student = require('../models/student');
 const user = require('../models/user');
+const attendance = require('../models/attendance');
 const asyncMiddleware = require('../middleware/async-middleware');
 const { validationResult } = require('express-validator');
 const errorHandler = require('../utils/error-handler');
@@ -63,6 +64,7 @@ const getAllStudents = asyncMiddleware(async (req, res, next) => {
 
 const deleteStudent = asyncMiddleware(async (req, res, next) => {
   const deleteStudent = await student.findByIdAndDelete(req.params.id);
+  const deleteAttendance = await attendance.deleteMany({student_id : deleteStudent._id});
   res.json({ status: 'success', message: 'تم حذف الطالب بنجاح', code: 200, data: deleteStudent });
 });
 
