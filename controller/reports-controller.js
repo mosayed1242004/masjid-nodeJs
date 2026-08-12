@@ -782,4 +782,22 @@ result.forEach((user) => {
 
 })
 
-module.exports = {showReports, downloadExcel, showAdminReports, downloadExcelAdmin};
+const downloadAdminTestsDegree = asyncMiddleware(async (req, res, next) => {
+  const testsDegree = await test.find().populate("student_id", "name");
+  const setTests = [...new Set(testsDegree.map(item => item.name))];
+
+  const buffer = await generateTestsExcel(testsDegree);
+
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+  res.setHeader(
+    "Content-Disposition",
+    "attachment; filename=tests-report.xlsx"
+  );
+
+  return res.status(200).send(buffer);
+})
+
+module.exports = {showReports, downloadExcel, showAdminReports, downloadExcelAdmin, downloadAdminTestsDegree};
