@@ -6,6 +6,7 @@ const asyncMiddleware = require('../middleware/async-middleware');
 const { validationResult } = require('express-validator');
 const errorHandler = require('../utils/error-handler');
 const test = require('../models/test');
+const { generateTestsExcel } = require("../utils/generateTestsExcel");
 
 
 const showReports = asyncMiddleware(async (req, res, next) => {
