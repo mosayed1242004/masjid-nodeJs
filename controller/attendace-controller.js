@@ -3,6 +3,7 @@ const user = require('../models/user');
 const Attendance = require('../models/attendance');
 const asyncMiddleware = require('../middleware/async-middleware');
 const errorHandler = require('../utils/error-handler');
+const cache = require("../utils/cahce");
 
 
 const storeAttendance = asyncMiddleware(async (req, res, next) => {
@@ -43,6 +44,12 @@ const storeAttendance = asyncMiddleware(async (req, res, next) => {
 });
 
 const getAttendance = asyncMiddleware(async (req, res, next) => {
+  const cacheKey = "attendances";
+  const cachedAttendaces = cache.get(cacheKey);
+
+  if (cachedAttendaces) {
+    return res.json({ status: 'success', message: "تم استرداد الغياب بنجاح", data: cachedAttendaces, code: 200 });
+  }
   const getStudents = await student.find({ userId: req.body.userId });
   if (getStudents.length === 0) {
     const handler = new errorHandler("failed", "لا يوجد طلبة", 400)
@@ -55,6 +62,8 @@ const getAttendance = asyncMiddleware(async (req, res, next) => {
     const handler = new errorHandler("failed", "لا يوجد حضور", 400);
     return next(handler);
   }
+
+  cache.set(cacheKey, attendance);
   return res.json({ status: 'success', message: "تم استرداد الغياب بنجاح", data: attendance, code: 200 });
 })
 
