@@ -38,7 +38,7 @@ const storeAttendance = asyncMiddleware(async (req, res, next) => {
     }
   );
 
-
+  cache.del("attendances");
   return res.json({status: 'success', message: 'تم حفظ الغياب بنجاح', code: 201, data: newAttendance});
 
 });
