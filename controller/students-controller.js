@@ -4,6 +4,7 @@ const attendance = require('../models/attendance');
 const asyncMiddleware = require('../middleware/async-middleware');
 const { validationResult } = require('express-validator');
 const errorHandler = require('../utils/error-handler');
+const cache = require("../utils/cahce");
 
 const storeStudent = asyncMiddleware(async (req, res, next) => {
   const errors = validationResult(req);
@@ -18,7 +19,7 @@ const storeStudent = asyncMiddleware(async (req, res, next) => {
   });
 
   await newStudent.save();
-
+  cache.del("students");
   res.json({status: 'success', message: 'User stored successfully', code: 200, data: newStudent});
 });
 
@@ -29,7 +30,7 @@ const updateStudent = asyncMiddleware(async (req, res, next) => {
     const Handler = new errorHandler('Fail', 'الطالب غير موجود', 400);
     return next(Handler);
   }
-
+  cache.del("students");
   res.json({ status: 'success', message: 'User updated successfully', code: 200, data: getStudent });
 });
 
@@ -45,6 +46,11 @@ const getStudent = asyncMiddleware(async (req, res, next) => {
 });
 
 const getAllStudents = asyncMiddleware(async (req, res, next) => {
+  const cacheKey = "students";
+  const cachedStudents = cache.get(cacheKey);
+  if (cachedStudents) {
+      return res.json({ status: 'success', message: 'User retrieved successfully', code: 200, data: cachedStudents });
+    }
   const getUser = await user.findById(req.params.id);
 
   if (!getUser) {
@@ -59,12 +65,15 @@ const getAllStudents = asyncMiddleware(async (req, res, next) => {
     return next(Handler);
   }
 
+  cache.set(cacheKey, getStudents);
+
   res.json({ status: 'success', message: 'User retrieved successfully', code: 200, data: getStudents });
 });
-
 const deleteStudent = asyncMiddleware(async (req, res, next) => {
   const deleteStudent = await student.findByIdAndDelete(req.params.id);
+  cache.del("students");
   const deleteAttendance = await attendance.deleteMany({student_id : deleteStudent._id});
+  cache.del("attendance");
   res.json({ status: 'success', message: 'تم حذف الطالب بنجاح', code: 200, data: deleteStudent });
 });
 
