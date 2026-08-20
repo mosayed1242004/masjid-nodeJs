@@ -46,21 +46,27 @@ const getTests = asyncMiddleware(async (req, res, next) => {
   const getStudents = await student.find({ userId: req.params.userId });
 
   if (getStudents.length === 0) {
-    const handler = new errorHandler("failed", "لا يوجد طلبة", 400)
+    const handler = new errorHandler("failed", "لا يوجد طلبة", 400);
     return next(handler);
   }
-  const studentsIds = getStudents.map(s => s._id);
+
+  const studentIds = getStudents.map((s) => s._id);
+
   const getTests = await Test.aggregate([
-  {
-    $match: {
-      student_id: { $in: studentsIds }
-    }
+    {
+      $match: {
+        student_id : {$in : studentIds }
+      }
   },
   {
     $group: {
       _id: "$student_id",
-      totalDegree: {
-        $sum: "$degree"
+      totalDegree: { $sum: "$degree" },
+      subjects: {
+        $push: {
+          name: "$name",
+          degree: "$degree"
+        }
       }
     }
   },
@@ -78,19 +84,21 @@ const getTests = asyncMiddleware(async (req, res, next) => {
   {
     $project: {
       _id: 0,
-      student_id: "$_id",
+      student_id: "$student._id",
       name: "$student.name",
-      totalDegree: 1
+      totalDegree: 1,
+      subjects: 1
     }
   }
 ]);
-  if (getTests.length === 0 ) {
+
+  if (getTests.length === 0) {
     const handler = new errorHandler("failed", "لا يوجد تقييمات", 400);
     return next(handler);
   }
 
   return res.json({ status: 'success', message: "تم استرداد التقييمات بنجاح", data: getTests, code: 200 });
-})
+});
 
 const getAllTests = asyncMiddleware(async (req, res, next) => {
   const getTests = await Test.aggregate([
