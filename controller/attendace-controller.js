@@ -3,6 +3,7 @@ const user = require('../models/user');
 const Attendance = require('../models/attendance');
 const asyncMiddleware = require('../middleware/async-middleware');
 const errorHandler = require('../utils/error-handler');
+
 const cache = require("../utils/cahce");
 
 
@@ -38,16 +39,17 @@ const storeAttendance = asyncMiddleware(async (req, res, next) => {
     }
   );
 
-  cache.del("attendances");
+  cache.del("attendances:" + req.params.userId + ":" + req.body.day);
   return res.json({status: 'success', message: 'تم حفظ الغياب بنجاح', code: 201, data: newAttendance});
 
 });
 
 const getAttendance = asyncMiddleware(async (req, res, next) => {
-  const cacheKey = "attendances";
+  const cacheKey = "attendances:" + req.params.userId + ":" + req.body.day;
   const cachedAttendaces = cache.get(cacheKey);
 
   if (cachedAttendaces) {
+    console.log("from cache");
     return res.json({ status: 'success', message: "تم استرداد الغياب بنجاح", data: cachedAttendaces, code: 200 });
   }
   const getStudents = await student.find({ userId: req.body.userId });
