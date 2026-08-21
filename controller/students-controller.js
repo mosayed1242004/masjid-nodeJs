@@ -77,7 +77,7 @@ const deleteStudent = asyncMiddleware(async (req, res, next) => {
   const deleteStudent = await student.findByIdAndDelete(req.params.id);
   cache.del("students:" + req.params.id);
   const deleteAttendance = await attendance.deleteMany({ student_id: deleteStudent._id });
-  cache.del("attendance");
+  cache.delByPrefix("attendances:");
   res.json({ status: 'success', message: 'تم حذف الطالب بنجاح', code: 200, data: deleteStudent });
 });
 
