@@ -19,7 +19,9 @@ const storeStudent = asyncMiddleware(async (req, res, next) => {
   });
 
   await newStudent.save();
-  cache.del("students");
+
+  cache.del("students:" + req.params.id);
+
   res.json({status: 'success', message: 'User stored successfully', code: 200, data: newStudent});
 });
 
@@ -29,8 +31,9 @@ const updateStudent = asyncMiddleware(async (req, res, next) => {
   if (!getStudent) {
     const Handler = new errorHandler('Fail', 'الطالب غير موجود', 400);
     return next(Handler);
-  }
-  cache.del("students");
+  };
+  cache.del("students:" + req.params.id);
+
   res.json({ status: 'success', message: 'User updated successfully', code: 200, data: getStudent });
 });
 
@@ -46,7 +49,7 @@ const getStudent = asyncMiddleware(async (req, res, next) => {
 });
 
 const getAllStudents = asyncMiddleware(async (req, res, next) => {
-  const cacheKey = "students";
+  const cacheKey = "students:" + req.params.id;
   const cachedStudents = cache.get(cacheKey);
   if (cachedStudents) {
       return res.json({ status: 'success', message: 'User retrieved successfully', code: 200, data: cachedStudents });
@@ -69,11 +72,12 @@ const getAllStudents = asyncMiddleware(async (req, res, next) => {
 
   res.json({ status: 'success', message: 'User retrieved successfully', code: 200, data: getStudents });
 });
+
 const deleteStudent = asyncMiddleware(async (req, res, next) => {
   const deleteStudent = await student.findByIdAndDelete(req.params.id);
-  cache.del("students");
-  const deleteAttendance = await attendance.deleteMany({student_id : deleteStudent._id});
-  cache.del("attendances");
+  cache.del("students:" + req.params.id);
+  const deleteAttendance = await attendance.deleteMany({ student_id: deleteStudent._id });
+  cache.del("attendance");
   res.json({ status: 'success', message: 'تم حذف الطالب بنجاح', code: 200, data: deleteStudent });
 });
 
